@@ -6,9 +6,9 @@ export default defineConfig({
 	plugins: [sveltekit(), tailwindcss()],
 	server: {
 		proxy: {
-			'/api': 'http://backend:8000',
-			'/logout': 'http://backend:8000',
-			'/login': 'http://backend:8000',
+			'/api': 'http://127.0.0.1:8000',
+			'/logout': 'http://127.0.0.1:8000',
+			'/login': 'http://127.0.0.1:8000',
 		}
 	}
 });
