@@ -6,6 +6,7 @@
   let subject = "";
 
   let manualRecipients = [{ name: "", email: "" }];
+  let bulkRecipients = "";
   let users = [];
   let groups = [];
   let selectedGroup = "";
@@ -59,6 +60,23 @@
     } else {
       selectedUserIds.add(email);
       selectedUserIds = new Set(selectedUserIds);
+    }
+  }
+
+  function addBulkRecipients() {
+    const lines = bulkRecipients.trim().split("\n");
+    const newRecipients = [];
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+      const parts = line.split("\t");
+      if (parts.length >= 2) {
+        newRecipients.push({ name: parts[0].trim(), email: parts[1].trim() });
+      }
+    }
+    if(newRecipients.length > 0) {
+      manualRecipients = [...manualRecipients, ...newRecipients];
+      bulkRecipients = "";
     }
   }
 
@@ -144,6 +162,20 @@
       {/each}
       <button type="button" on:click={addManualRecipient} class="mt-2 bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded">
         Add Recipient
+      </button>
+    </div>
+
+    <!-- Bulk Recipient 붙여넣기 입력란 -->
+    <div>
+      <h3 class="font-semibold mb-2">Bulk Add Recipients</h3>
+      <textarea
+        bind:value={bulkRecipients}
+        placeholder="예: 홍길동<TAB>hong@example.com&#10;김철수<TAB>kim@example.com"
+        class="w-full p-2 border border-gray-300 rounded"
+        rows="4"
+      ></textarea>
+      <button type="button" on:click={addBulkRecipients} class="mt-2 bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 rounded">
+        Add Bulk Recipients
       </button>
     </div>
     
