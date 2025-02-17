@@ -1,5 +1,6 @@
 <!-- src/routes/+layout.svelte -->
 <script>
+	import '../app.css';
 	import { onMount } from "svelte";
 	import { user, loadUser, logout } from "$lib/stores/auth";
 	import Footer from "$lib/components/Footer.svelte";

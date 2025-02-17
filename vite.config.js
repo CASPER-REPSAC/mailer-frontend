@@ -6,21 +6,9 @@ export default defineConfig({
 	plugins: [sveltekit(), tailwindcss()],
 	server: {
 		proxy: {
-			'/api': {
-				target: 'http://backend:8000',
-				changeOrigin: true,
-				secure: false
-			},
-			'/logout': {
-				target: 'http://backend:8000',
-				changeOrigin: true,
-				secure: false
-			},
-			'/login': {
-				target: 'http://backend:8000',
-				changeOrigin: true,
-				secure: false
-			}
+			'/api': 'http://backend:8000',
+			'/logout': 'http://backend:8000',
+			'/login': 'http://backend:8000',
 		}
 	}
 });

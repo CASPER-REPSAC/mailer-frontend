@@ -1,6 +1,5 @@
 // src/lib/utils/api.js
 
-// 기본 API URL은 환경변수(VITE_API_BASE)를 통해 설정할 수 있고, 없으면 빈 문자열로 처리합니다.
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 /**
