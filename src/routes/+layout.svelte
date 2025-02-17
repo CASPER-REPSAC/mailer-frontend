@@ -18,6 +18,7 @@
 		<ul class="flex space-x-4 items-center">
 			<li><a href="/" class="hover:underline">Dashboard</a></li>
 			<li><a href="/templates" class="hover:underline">Templates</a></li>
+			<li><a href="/images" class="hover:underline">Images</a></li>
 			<li><a href="/users" class="hover:underline">Users</a></li>
 			<li><a href="/email" class="hover:underline">Email</a></li>
 			{#if $user}
