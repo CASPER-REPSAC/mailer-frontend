@@ -83,6 +83,19 @@
     }
   }
 
+  async function extractSubjectFromTemplate() {
+    if (!selectedTemplate) return;
+    try {
+      const templateData = await api.fetchTemplate(selectedTemplate);
+      const match = templateData.content.match(/<title>(.*?)<\/title>/);
+      if (match) {
+        subject = match[1];
+      }
+    } catch (e) {
+      console.error("템플릿 내용에서 제목 추출 실패:", e);
+    }
+  }
+
   async function submitEmail(event) {
     event.preventDefault();
     let recipients = [];
@@ -142,7 +155,9 @@
         class="w-full border border-gray-300 p-2 rounded"
       >
         {#each templates as tmpl}
-          <option value={tmpl}>{tmpl}</option>
+          <option value={tmpl} on:click={extractSubjectFromTemplate}>
+            {tmpl}
+          </option>
         {/each}
       </select>
     </div>
