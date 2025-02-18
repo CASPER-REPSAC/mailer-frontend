@@ -38,7 +38,7 @@
           alert("이미 해당 이름의 템플릿이 존재합니다.");
           return;
         }
-        await api.createTemplate(newName, data.content);
+        await api.updateTemplate(newName, data.content);
       } catch (err) {
         console.error(err);
         alert(`복제 실행 중 오류 발생: ${err}`);
