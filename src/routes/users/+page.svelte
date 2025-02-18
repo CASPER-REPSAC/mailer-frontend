@@ -1,13 +1,13 @@
+<svelte:head>
+    <title>User List</title>
+</svelte:head>
 <script>
+    import * as api from '$lib/utils/api';
     import { onMount } from 'svelte';
     let users = [];
   
-    // 예시로 /api/users 엔드포인트에서 사용자 리스트를 불러옵니다.
     onMount(async () => {
-      const res = await fetch('/api/users');
-      if (res.ok) {
-        users = await res.json();
-      }
+      users = (await api.fetchUsers());
     });
   </script>
   

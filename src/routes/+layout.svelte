@@ -1,4 +1,6 @@
-<!-- src/routes/+layout.svelte -->
+<svelte:head>
+    <title>Main Page</title> 
+</svelte:head>
 <script>
 	import '../app.css';
 	import { onMount } from "svelte";
@@ -6,7 +8,6 @@
 	import Footer from "$lib/components/Footer.svelte";
 	import Feedback from "$lib/components/Feedback.svelte";
 
-	// 앱 시작 시 사용자 정보를 불러옵니다.
 	onMount(() => {
 		loadUser();
 	});

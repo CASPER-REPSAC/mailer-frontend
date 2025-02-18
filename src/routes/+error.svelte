@@ -1,6 +1,4 @@
-<!-- src/routes/+error.svelte -->
 <script>
-    // SvelteKit은 오류 발생 시 error와 status props를 전달합니다.
     export let error;
     export let status;
   </script>

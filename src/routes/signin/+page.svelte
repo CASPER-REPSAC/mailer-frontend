@@ -1,3 +1,6 @@
+<svelte:head>
+    <title>Sign In</title>
+</svelte:head>
 <script>
   import { onMount } from 'svelte';
   import { user, loadUser } from '$lib/stores/auth';
