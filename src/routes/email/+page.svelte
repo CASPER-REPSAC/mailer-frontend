@@ -1,293 +1,498 @@
-<svelte:head>
-  <title>Send Email</title>
-</svelte:head>
 <script>
-  import * as api from "$lib/utils/api";
   import { onMount } from "svelte";
+  import * as api from "$lib/utils/api";
+  let subject = "";
   let templates = [];
   let selectedTemplate = "";
-  let subject = "";
+  let isSending = false;
+  let sendError = "";
+  let sendSuccess = "";
 
-  let manualRecipients = [{ name: "", email: "" }];
-  let bulkRecipients = "";
-  let users = [];
-  let groups = [];
-  let selectedGroup = "";
-  let selectedUserIds = new Set();
-  $: groupFilteredUsers = selectedGroup
-    ? users.filter(
-        (u) =>
-          u.groups_obj && u.groups_obj.some((g) => g.name === selectedGroup),
-      )
-    : users;
-  let isLoading = false;
-  let successMsg = "";
-  let errorMsg = "";
-  onMount(async () => {
+  async function loadTemplates() {
     try {
-      const tmplData = await api.fetchTemplates();
-      templates = tmplData || [];
-      if (templates.length > 0) {
-        selectedTemplate = templates[0];
+      const tpls = await api.fetchTemplates();
+      templates = tpls;
+      if (tpls.length > 0) {
+        selectedTemplate = tpls[0];
+        onTemplateChange();
       }
-    } catch (e) {
-      console.error("템플릿 불러오기 실패:", e);
+    } catch (error) {
+      console.error("템플릿 불러오기 오류:", error);
     }
+  }
+
+  function parseTemplateProperties(content) {
+    const regex = /{{\s*property\s+"([^"]+)"\s*}}/g;
+    let match;
+    let props = new Set();
+    while ((match = regex.exec(content)) !== null) {
+      props.add(match[1].trim());
+    }
+    return Array.from(props);
+  }
+
+  function extractSubjectFromTemplate(templateHTML) {
+    const regex = /<title>([\s\S]*?)<\/title>/i;
+    const match = templateHTML.match(regex);
+    return match ? match[1].trim() : "";
+  }
+
+  let allowedProperties = [];
+  async function updateAllowedProperties() {
+    if (!selectedTemplate) return;
     try {
-      users = await api.fetchUsers();
-      const groupSet = new Set();
-      users.forEach((u) => {
-        if (u.groups_obj && Array.isArray(u.groups_obj)) {
-          u.groups_obj.forEach((g) => groupSet.add(g.name));
-        }
+      const tmplData = await api.fetchTemplate(selectedTemplate);
+      allowedProperties = parseTemplateProperties(tmplData.content);
+      recipients = recipients.map((r) => {
+        let newCustom = { ...r.custom };
+        allowedProperties.forEach((key) => {
+          if (!(key in newCustom)) newCustom[key] = "";
+        });
+        Object.keys(newCustom).forEach((key) => {
+          if (!allowedProperties.includes(key)) delete newCustom[key];
+        });
+        return { ...r, custom: newCustom };
       });
-      groups = Array.from(groupSet);
-      groups.sort();
-    } catch (e) {
-      console.error("사용자 목록 불러오기 실패:", e);
+    } catch (err) {
+      console.error("템플릿 내용 파싱 오류:", err);
     }
-  });
+  }
 
+  async function onTemplateChange() {
+    updateAllowedProperties();
+    const tmplData = await api.fetchTemplate(selectedTemplate);
+    subject = extractSubjectFromTemplate(tmplData.content);
+  }
+  let activeTab = "manual"; // "manual" | "bulk" | "select"
+  let recipients = []; // 각 요소: { name, email, custom }
+  let manualName = "";
+  let manualEmail = "";
   function addManualRecipient() {
-    manualRecipients = [...manualRecipients, { name: "", email: "" }];
-  }
-
-  function removeManualRecipient(index) {
-    manualRecipients = manualRecipients.filter((_, i) => i !== index);
-  }
-
-  function toggleUserSelection(email) {
-    if (selectedUserIds.has(email)) {
-      selectedUserIds.delete(email);
-      selectedUserIds = new Set(selectedUserIds);
+    const name = manualName.trim();
+    const email = manualEmail.trim();
+    if (!name || !email) {
+      alert("이름과 이메일을 모두 입력하세요.");
+      return;
+    }
+    if (!recipients.find((r) => r.email === email)) {
+      let custom = {};
+      allowedProperties.forEach((prop) => (custom[prop] = ""));
+      recipients = [...recipients, { name, email, custom }];
+      manualName = "";
+      manualEmail = "";
     } else {
-      selectedUserIds.add(email);
-      selectedUserIds = new Set(selectedUserIds);
+      alert("이미 추가된 사용자입니다.");
     }
   }
 
+  let bulkText = "";
   function addBulkRecipients() {
-    const lines = bulkRecipients.trim().split("\n");
+    const lines = bulkText.trim().split("\n");
     const newRecipients = [];
     for (let line of lines) {
       line = line.trim();
       if (!line) continue;
       const parts = line.split("\t");
       if (parts.length >= 2) {
-        newRecipients.push({ name: parts[0].trim(), email: parts[1].trim() });
+        const name = parts[0].trim();
+        const email = parts[1].trim();
+        const customValues = parts.slice(2);
+        if (name && email && !recipients.find((r) => r.email === email)) {
+          let custom = {};
+          allowedProperties.forEach(
+            (prop) => (custom[prop] = customValues.shift() || ""),
+          );
+          newRecipients.push({ name, email, custom });
+        }
       }
     }
     if (newRecipients.length > 0) {
-      manualRecipients = [...manualRecipients, ...newRecipients];
-      bulkRecipients = "";
+      recipients = [...recipients, ...newRecipients];
+      bulkText = "";
+    } else {
+      alert("추가할 수신자 데이터가 없습니다.");
     }
   }
 
-  async function extractSubjectFromTemplate() {
-    if (!selectedTemplate) return;
+  let allUsers = [];
+  let groups = [];
+  let selectedGroup = "";
+  let selectedUserEmails = new Set();
+
+  onMount(async () => {
     try {
-      const templateData = await api.fetchTemplate(selectedTemplate);
-      const match = templateData.content.match(/<title>(.*?)<\/title>/);
-      if (match) {
-        subject = match[1];
-      }
+      const users = await api.fetchUsers();
+      allUsers = users;
+      const groupSet = new Set();
+      users.forEach((u) => {
+        if (u.groups_obj && Array.isArray(u.groups_obj)) {
+          u.groups_obj.forEach((g) => groupSet.add(g.name));
+        }
+      });
+      groups = Array.from(groupSet).sort();
     } catch (e) {
-      console.error("템플릿 내용에서 제목 추출 실패:", e);
+      console.error("사용자 목록 불러오기 오류:", e);
+    }
+    loadTemplates();
+  });
+
+  $: filteredUsers = selectedGroup
+    ? allUsers.filter(
+        (user) =>
+          user.groups_obj &&
+          user.groups_obj.some((g) => g.name === selectedGroup),
+      )
+    : allUsers;
+
+  function toggleUser(email) {
+    if (selectedUserEmails.has(email)) {
+      selectedUserEmails.delete(email);
+      selectedUserEmails = new Set([...selectedUserEmails]);
+    } else {
+      selectedUserEmails.add(email);
+      selectedUserEmails = new Set([...selectedUserEmails]);
     }
   }
 
-  async function submitEmail(event) {
-    event.preventDefault();
-    let recipients = [];
-
-    manualRecipients.forEach((r) => {
-      if (r.name.trim() && r.email.trim()) {
-        recipients.push({ name: r.name.trim(), email: r.email.trim() });
+  function addSelectedRecipients() {
+    allUsers.forEach((user) => {
+      if (selectedUserEmails.has(user.email)) {
+        if (!recipients.find((r) => r.email === user.email)) {
+          let custom = {};
+          allowedProperties.forEach((prop) => (custom[prop] = ""));
+          recipients = [
+            ...recipients,
+            { name: user.name, email: user.email, custom },
+          ];
+        }
       }
     });
+    selectedUserEmails = new Set();
+  }
 
-    groupFilteredUsers.forEach((u) => {
-      if (selectedUserIds.has(u.email)) {
-        recipients.push({ name: u.name, email: u.email });
-      }
-    });
+  function removeRecipient(index) {
+    recipients = recipients.filter((_, i) => i !== index);
+  }
 
+  async function sendEmail() {
+    sendError = "";
+    sendSuccess = "";
+    if (recipients.length === 0) {
+      alert("수신자가 없습니다.");
+      return;
+    }
     if (!selectedTemplate) {
-      errorMsg = "템플릿을 선택해주세요.";
+      sendError = "템플릿을 선택하세요.";
       return;
     }
     if (!subject.trim()) {
-      errorMsg = "제목을 입력해주세요.";
+      sendError = "제목을 입력하세요.";
       return;
     }
-    if (recipients.length === 0) {
-      errorMsg = "최소 하나의 수신자를 입력하거나 선택하세요.";
-      return;
-    }
-    isLoading = true;
-    errorMsg = "";
-    successMsg = "";
+    isSending = true;
     try {
-      const response = await api.sendEmail({
+      const res = await api.sendEmail({
         template: selectedTemplate,
-        subject,
+        subject: subject,
         recipient: recipients,
       });
-      successMsg = response.message;
-    } catch (e) {
-      errorMsg = e.message;
+      sendSuccess = res.message;
+    } catch (err) {
+      sendError = err.message;
     } finally {
-      isLoading = false;
+      isSending = false;
     }
   }
 </script>
 
-<section class="max-w-2xl mx-auto p-4 space-y-6">
-  <h2 class="text-2xl font-bold mb-4">Send Email</h2>
+<svelte:head>
+  <title>Email</title>
+</svelte:head>
 
-  <form on:submit|preventDefault={submitEmail} class="space-y-6">
-    <!-- 템플릿 드롭다운 -->
-    <div>
-      <label class="block font-medium mb-1" for="template">Template</label>
+<div class="max-w-3xl mx-auto p-4 space-y-6">
+  <div class="email-header-section">
+    <h3 class="text-xl font-semibold">이메일 발송</h3>
+    <div class="space-y-2 mt-2">
+      <label for="template-select" class="block font-medium">Template</label>
       <select
-        name="template"
+        id="template-select"
         bind:value={selectedTemplate}
-        class="w-full border border-gray-300 p-2 rounded"
+        on:change={onTemplateChange}
       >
-        {#each templates as tmpl}
-          <option value={tmpl} on:click={extractSubjectFromTemplate}>
-            {tmpl}
-          </option>
+        {#each templates as tpl}
+          <option value={tpl}>{tpl}</option>
         {/each}
       </select>
     </div>
-
-    <!-- 제목 입력 -->
-    <div>
-      <label class="block font-medium mb-1" for="subject">Subject</label>
+    <div class="space-y-2 mt-2">
+      <label for="subject" class="block font-medium">Subject</label>
       <input
+        id="subject"
         type="text"
-        name="subject"
         bind:value={subject}
-        class="w-full border border-gray-300 p-2 rounded"
+        placeholder="Email subject"
       />
     </div>
+  </div>
 
-    <!-- Manual Recipient 입력란 -->
-    <div>
-      <h3 class="font-semibold mb-2">Manual Recipients</h3>
-      {#each manualRecipients as rec, index}
-        <div class="flex space-x-2 mb-2">
-          <input
-            type="text"
-            placeholder="Name"
-            bind:value={rec.name}
-            class="flex-grow border border-gray-300 p-2 rounded"
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            bind:value={rec.email}
-            class="flex-grow border border-gray-300 p-2 rounded"
-          />
-          {#if index > 0}
-            <button
-              type="button"
-              on:click={() => removeManualRecipient(index)}
-              class="bg-red-500 hover:bg-red-700 text-white px-2 rounded"
-            >
-              Remove
-            </button>
-          {/if}
-        </div>
-      {/each}
-      <button
-        type="button"
-        on:click={addManualRecipient}
-        class="mt-2 bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded"
-      >
-        Add Recipient
-      </button>
-    </div>
-
-    <!-- Bulk Recipient 붙여넣기 입력란 -->
-    <div>
-      <h3 class="font-semibold mb-2">Bulk Add Recipients</h3>
-      <textarea
-        bind:value={bulkRecipients}
-        placeholder="예: 홍길동<TAB>hong@example.com&#10;김철수<TAB>kim@example.com"
-        class="w-full p-2 border border-gray-300 rounded"
-        rows="4"
-      ></textarea>
-      <button
-        type="button"
-        on:click={addBulkRecipients}
-        class="mt-2 bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 rounded"
-      >
-        Add Bulk Recipients
-      </button>
-    </div>
-
-    <!-- Group-based Recipient 선택 -->
-    <div>
-      <h3 class="font-semibold mb-2">Select Recipients by Group</h3>
-      <div class="mb-2">
-        <label class="block font-medium mb-1" for="group">Group</label>
-        <select
-          name="group"
-          bind:value={selectedGroup}
-          class="w-full border border-gray-300 p-2 rounded"
-        >
-          <option value="">전체 사용자</option>
-          {#each groups as group}
-            <option value={group}>{group}</option>
-          {/each}
-        </select>
+  <h2 class="text-2xl font-bold mb-4">사용자 추가</h2>
+  <div class="tabs">
+    <button
+      class="tab {activeTab === 'manual' ? 'active' : ''}"
+      on:click={() => (activeTab = "manual")}
+    >
+      수동 추가
+    </button>
+    <button
+      class="tab {activeTab === 'bulk' ? 'active' : ''}"
+      on:click={() => (activeTab = "bulk")}
+    >
+      대량 추가
+    </button>
+    <button
+      class="tab {activeTab === 'select' ? 'active' : ''}"
+      on:click={() => (activeTab = "select")}
+    >
+      기존 사용자 추가
+    </button>
+  </div>
+  {#if activeTab === "manual"}
+    <div class="tab-content">
+      <h3 class="text-lg font-semibold mb-2">수동 추가</h3>
+      <div class="space-y-2">
+        <input type="text" placeholder="이름" bind:value={manualName} />
+        <input type="email" placeholder="이메일" bind:value={manualEmail} />
       </div>
-      <div>
-        <p class="mb-1 font-medium">Users</p>
-        {#if groupFilteredUsers.length > 0}
-          <ul
-            class="max-h-48 overflow-y-auto border border-gray-300 p-2 rounded"
+      <button class="btn-blue mt-2" on:click={addManualRecipient}>추가</button>
+    </div>
+  {:else if activeTab === "bulk"}
+    <div class="tab-content">
+      <h3 class="text-lg font-semibold mb-2">대량 추가</h3>
+      <textarea
+        rows="4"
+        bind:value={bulkText}
+        placeholder="예: 이름[TAB]이메일&#10;홍길동[TAB]hong@example.com"
+      ></textarea>
+      <button class="btn-blue mt-2" on:click={addBulkRecipients}>추가</button>
+    </div>
+  {:else if activeTab === "select"}
+    <div class="tab-content">
+      <h3 class="text-lg font-semibold mb-2">기존 사용자 추가</h3>
+      <select bind:value={selectedGroup}>
+        <option value="">전체 그룹</option>
+        {#each groups as group}
+          <option value={group}>{group}</option>
+        {/each}
+      </select>
+      <div class="user-list mt-2">
+        {#each filteredUsers as user}
+          <div
+            class="user-item {selectedUserEmails.has(user.email)
+              ? 'selected'
+              : ''}"
+            role="button"
+            tabindex="0"
+            on:click={() => toggleUser(user.email)}
+            on:keydown={(e) => {
+              if (e.key === "Enter" || e.key === " ") toggleUser(user.email);
+            }}
           >
-            {#each groupFilteredUsers as user}
-              <li class="flex items-center">
-                <input
-                  type="checkbox"
-                  id={user.email}
-                  checked={selectedUserIds.has(user.email)}
-                  on:change={() => toggleUserSelection(user.email)}
-                  class="mr-2"
-                />
-                <label for={user.email}>
-                  {user.name} ({user.email})
-                </label>
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <p>No users found.</p>
+            <strong>{user.name}</strong> ({user.email})<br />
+            <small
+              >{user.groups_obj
+                ? user.groups_obj.map((g) => g.name).join(", ")
+                : ""}</small
+            >
+          </div>
+        {/each}
+        {#if filteredUsers.length === 0}
+          <p>해당 그룹의 사용자가 없습니다.</p>
         {/if}
       </div>
+      <button class="btn-blue mt-2" on:click={addSelectedRecipients}
+        >추가</button
+      >
     </div>
+  {/if}
 
-    {#if errorMsg}
-      <p class="text-red-500">{errorMsg}</p>
-    {/if}
-    {#if successMsg}
-      <p class="text-green-500">{successMsg}</p>
-    {/if}
+  <h3 class="text-xl font-semibold mt-6">추가된 사용자</h3>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th class="header-cell">Name</th>
+          <th class="header-cell">Email</th>
+          {#if allowedProperties.length > 0}
+            {#each allowedProperties as prop}
+              <th class="header-cell">{prop}</th>
+            {/each}
+          {/if}
+          <th class="header-cell">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each recipients as rec, idx}
+          <tr>
+            <td>
+              <input type="text" bind:value={rec.name} placeholder="Name" />
+            </td>
+            <td>
+              <input type="email" bind:value={rec.email} placeholder="Email" />
+            </td>
+            {#if allowedProperties.length > 0}
+              {#each allowedProperties as prop}
+                <td>
+                  <input
+                    type="text"
+                    placeholder={prop}
+                    value={rec.custom[prop] || ""}
+                    on:input={(e) => (rec.custom[prop] = e.target.value)}
+                  />
+                </td>
+              {/each}
+            {/if}
+            <td>
+              <button
+                type="button"
+                on:click={() => removeRecipient(idx)}
+                class="btn-red"
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+  {#if recipients.length == 0}
+    <p>추가된 사용자가 없습니다.</p>
+  {/if}
 
-    <button
-      type="submit"
-      class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-      disabled={isLoading}
-    >
-      {#if isLoading}
-        Sending...
-      {:else}
-        Send Email
-      {/if}
+  <div class="email-send-section mt-6">
+    <button class="btn-blue mt-2" on:click={sendEmail}>
+      {isSending ? "Sending..." : "발송"}
     </button>
-  </form>
-</section>
+    {#if sendError}
+      <p class="text-red-500 mt-2">{sendError}</p>
+    {/if}
+    {#if sendSuccess}
+      <p class="text-green-500 mt-2">{sendSuccess}</p>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .email-header-section {
+    border: 1px solid #ddd;
+    padding: 1rem;
+    border-radius: 6px;
+  }
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 1rem;
+  }
+  .tab {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-weight: bold;
+    margin-right: 1rem;
+  }
+  .tab.active {
+    border-bottom: 2px solid #007bff;
+    color: #007bff;
+  }
+  .tab-content {
+    margin-bottom: 1rem;
+  }
+  /* 기존 사용자 추가 */
+  .user-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 0.5rem;
+  }
+  .user-item {
+    padding: 0.5rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+  }
+  .user-item.selected {
+    background-color: #d1e7ff;
+    border: 1px solid #007bff;
+  }
+  /* 테이블 */
+  .table-container {
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th,
+  td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    white-space: nowrap;
+    text-align: center;
+    vertical-align: middle;
+  }
+  th.header-cell {
+    vertical-align: middle;
+  }
+  @keyframes shake {
+    0% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-2px);
+    }
+    40% {
+      transform: translateX(2px);
+    }
+    60% {
+      transform: translateX(-2px);
+    }
+    80% {
+      transform: translateX(2px);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+  input,
+  textarea,
+  select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .btn-blue {
+    background-color: #007bff;
+    color: #fff;
+  }
+  .btn-red {
+    background-color: #dc3545;
+    color: #fff;
+  }
+  .mt-2 {
+    margin-top: 0.5rem;
+  }
+  .space-y-2 > * + * {
+    margin-top: 0.5rem;
+  }
+  .space-y-6 > * + * {
+    margin-top: 1.5rem;
+  }
+</style>

@@ -1,20 +1,21 @@
-<svelte:head>
-    <title>Sign In</title>
-</svelte:head>
 <script>
-  import { onMount } from 'svelte';
-  import { user, loadUser } from '$lib/stores/auth';
-  import { goto } from '$app/navigation';
+  import { onMount } from "svelte";
+  import { user, loadUser } from "$lib/stores/auth";
+  import { goto } from "$app/navigation";
 
   // 앱 시작 시 백엔드의 /api/me를 호출하여 이미 로그인된 사용자인지 체크합니다.
   onMount(async () => {
     await loadUser();
     if ($user) {
       // 이미 로그인된 상태라면 대시보드로 이동
-      goto('/');
+      goto("/");
     }
   });
 </script>
+
+<svelte:head>
+  <title>Sign In</title>
+</svelte:head>
 
 <section class="max-w-md mx-auto p-4">
   <h2 class="text-xl font-bold mb-4">Sign In</h2>
@@ -23,7 +24,7 @@
   </p>
   <!-- 버튼 클릭 시 백엔드의 /login 엔드포인트로 리디렉션 -->
   <button
-    on:click={() => window.location.href = '/login'}
+    on:click={() => (window.location.href = "/login")}
     class="inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
   >
     Login with OIDC

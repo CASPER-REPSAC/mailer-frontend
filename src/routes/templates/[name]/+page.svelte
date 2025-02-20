@@ -1,6 +1,3 @@
-<svelte:head>
-    <title>Template Editor</title>
-</svelte:head>
 <script>
   import * as api from "$lib/utils/api";
   export let data;
@@ -29,12 +26,18 @@
   }
 </script>
 
+<svelte:head>
+  <title>Template Editor</title>
+</svelte:head>
+
 <section class="p-4">
   <h2 class="text-xl font-bold mb-4">Editing Template: {template.name}</h2>
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <!-- 편집 영역 -->
     <div>
-      <label class="block font-medium mb-1" for="content">Template Content (HTML)</label>
+      <label class="block font-medium mb-1" for="content"
+        >Template Content (HTML)</label
+      >
       <textarea
         name="content"
         bind:value={content}

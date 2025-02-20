@@ -50,11 +50,17 @@ export async function fetchTemplates() {
  * @param {string} name - 템플릿 이름
  */
 export async function fetchTemplate(name) {
+  if(fetchTemplate.cache && fetchTemplate.cache[name]) {
+    return fetchTemplate.cache[name];
+  }
   const res = await fetch(`${API_BASE}/api/templates/${encodeURIComponent(name)}`, {
     credentials: "include"
   });
   if (!res.ok) throw new Error(`Failed to fetch template: ${name}`);
-  return await res.json();
+  const template = await res.json();
+  fetchTemplate.cache = fetchTemplate.cache || {};
+  fetchTemplate.cache[name] = template;
+  return template;
 }
 
 /**

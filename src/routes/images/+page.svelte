@@ -1,6 +1,3 @@
-<svelte:head>
-  <title>Images</title>
-</svelte:head>
 <script>
   import * as api from "$lib/utils/api";
   import { onMount } from "svelte";
@@ -44,6 +41,10 @@
     }
   }
 </script>
+
+<svelte:head>
+  <title>Images</title>
+</svelte:head>
 
 <section class="p-4 max-w-4xl mx-auto">
   <h2 class="text-2xl font-bold mb-4">Images</h2>

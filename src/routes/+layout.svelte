@@ -1,8 +1,5 @@
-<svelte:head>
-    <title>Main Page</title> 
-</svelte:head>
 <script>
-	import '../app.css';
+	import "../app.css";
 	import { onMount } from "svelte";
 	import { user, loadUser, logout } from "$lib/stores/auth";
 	import Footer from "$lib/components/Footer.svelte";
@@ -12,6 +9,10 @@
 		loadUser();
 	});
 </script>
+
+<svelte:head>
+	<title>Main Page</title>
+</svelte:head>
 
 <header class="bg-gray-800 text-white p-4 flex items-center justify-between">
 	<h1 class="text-xl font-bold">Mail-Manager Dashboard</h1>

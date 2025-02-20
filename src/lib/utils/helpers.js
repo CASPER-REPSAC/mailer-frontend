@@ -1,5 +1,3 @@
-// src/lib/utils/helpers.js
-
 /**
  * 날짜를 읽기 쉬운 문자열로 포맷합니다.
  * @param {Date | string | number} dateInput
