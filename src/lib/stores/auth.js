@@ -10,7 +10,7 @@ export const user = writable(null);
 export async function loadUser() {
   try {
     const res = await api.fetchUser();
-    user.set(data);
+    user.set(res);
   } catch (error) {
     console.error('Failed to load user:', error);
     user.set(null);
