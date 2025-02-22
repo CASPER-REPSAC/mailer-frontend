@@ -39,6 +39,7 @@
         return;
       }
       await api.updateTemplate(newName, data.content);
+      loadTemplates();
     } catch (err) {
       console.error(err);
       alert(`복제 실행 중 오류 발생: ${err}`);
@@ -74,6 +75,28 @@
       alert(`새 템플릿 생성 중 오류 발생: ${err}`);
     }
   }
+
+  // 템플릿 이름변경
+  async function renameTemplate(originalName) {
+    const newName = prompt(
+      "변경할 템플릿 이름을 입력하세요:",
+      originalName,
+    );
+    if (!newName) return;
+    if (templates.includes(newName)) {
+      alert("이미 해당 이름의 템플릿이 존재합니다.");
+      return;
+    }
+    try {
+      const data = await api.fetchTemplate(originalName);
+      await api.updateTemplate(newName, data.content);
+      await api.deleteTemplate(originalName);
+      loadTemplates();
+    } catch (err) {
+      console.error(err);
+      alert(`이름 변경 중 오류 발생: ${err}`);
+    }
+  }
 </script>
 
 <svelte:head>
@@ -104,6 +127,12 @@
           >
             {tpl}
           </a>
+          <button
+            on:click={() => renameTemplate(tpl)}
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded"
+          >
+            Rename
+          </button>
           <button
             on:click={() => duplicateTemplate(tpl)}
             class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded"
