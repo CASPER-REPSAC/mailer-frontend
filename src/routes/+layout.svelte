@@ -149,7 +149,11 @@
             {/if}
           </div>
         {:else}
-          <Button href="/signin" variant="primary" size="sm">로그인</Button>
+          <Button
+            on:click={() => (window.location.href = "/signin")}
+            variant="primary"
+            size="sm">로그인</Button
+          >
         {/if}
       </div>
     </div>
