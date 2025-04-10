@@ -1,41 +1,63 @@
 <script>
-  import * as api from "$lib/utils/api";
   import { onMount } from "svelte";
-  let users = [];
+  import { Card, ResponsiveTable } from "$lib";
+  import { createUserStore } from "./stores/userStore";
+  import UserGroupBadges from "./components/UserGroupBadges.svelte";
+  import UserNameDisplay from "./components/UserNameDisplay.svelte";
 
-  onMount(async () => {
-    users = await api.fetchUsers();
+  const userStore = createUserStore();
+  const { users, loading, error, fetchUsers } = userStore;
+
+  onMount(() => {
+    fetchUsers();
   });
+
+  const columns = [
+    {
+      header: "이름",
+      field: "name",
+      component: UserNameDisplay,
+    },
+    {
+      header: "이메일",
+      field: "email",
+    },
+    {
+      header: "그룹",
+      field: "groups_obj",
+      component: UserGroupBadges,
+    },
+  ];
+
+  $: tableData = $users.map((user) => ({ ...user, id: user.email }));
 </script>
 
 <svelte:head>
-  <title>User List</title>
+  <title>사용자 목록 | Mail-Manager</title>
 </svelte:head>
 
-<section>
-  <h2 class="text-2xl font-bold mb-4">User List</h2>
-  {#if users.length > 0}
-    <table class="min-w-full bg-white">
-      <thead>
-        <tr>
-          <th class="py-2 px-4 border-b">Name</th>
-          <th class="py-2 px-4 border-b">Email</th>
-          <th class="py-2 px-4 border-b">Group</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each users as user}
-          <tr>
-            <td class="py-2 px-4 border-b">{user.name}</td>
-            <td class="py-2 px-4 border-b">{user.email}</td>
-            <td class="py-2 px-4 border-b"
-              >{user.groups_obj.map((group) => group.name).join(", ")}</td
-            >
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  {:else}
-    <p class="text-gray-600">No users found.</p>
-  {/if}
-</section>
+<Card>
+  <div
+    class="bg-gradient-to-r from-blue-600 to-blue-800 -m-5 mb-0 px-6 py-4 rounded-t-lg"
+  >
+    <h1 class="text-2xl font-semibold text-white">사용자 관리</h1>
+    <p class="text-blue-100 mt-1">
+      시스템에 등록된 모든 사용자 목록을 확인하고 관리합니다.
+    </p>
+  </div>
+
+  <div class="p-6">
+    <ResponsiveTable
+      {columns}
+      data={tableData}
+      keyField="id"
+      loading={$loading}
+      emptyMessage="시스템에 등록된 사용자가 없습니다."
+      striped={true}
+      hoverEffect={true}
+      bordered={false}
+      compact={false}
+      class="mt-4"
+    />
+  </div>
+</Card>

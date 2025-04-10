@@ -1,154 +1,89 @@
 <script>
   import { onMount } from "svelte";
-  import * as api from "$lib/utils/api";
+  import { Button, Card, ResponsiveTable } from "$lib"; // Spinner 제거 (ResponsiveTable이 내부 처리)
+  import { createTemplateListStore } from "./stores/templateListStore";
+  import TemplateActions from "./components/TemplateActions.svelte";
+  import TemplateNameLink from "./components/TemplateNameLink.svelte";
 
-  let templates = [];
-  let loading = false;
-  let error = "";
-
-  // API에서 템플릿 목록을 불러오는 함수
-  async function loadTemplates() {
-    loading = true;
-    error = "";
-    try {
-      const res = await api.fetchTemplates();
-      templates = res;
-    } catch (err) {
-      console.error(err);
-      error = "템플릿 로드 중 오류가 발생했습니다.";
-    } finally {
-      loading = false;
-    }
-  }
+  const templateListStore = createTemplateListStore();
+  const {
+    templates,
+    loading,
+    error,
+    loadTemplates,
+    createTemplate,
+    duplicateTemplate,
+    renameTemplate,
+    deleteTemplate,
+  } = templateListStore;
 
   onMount(() => {
     loadTemplates();
   });
 
-  // 기존 템플릿 내용을 GET한 후, 새 이름으로 POST하여 복제 실행
-  async function duplicateTemplate(originalName) {
-    try {
-      const data = await api.fetchTemplate(originalName);
-      const newName = prompt(
-        "복제할 새 템플릿 이름을 입력하세요:",
-        `${originalName}_copy`,
-      );
-      if (!newName) return;
-      if (templates.includes(newName)) {
-        alert("이미 해당 이름의 템플릿이 존재합니다.");
-        return;
-      }
-      await api.updateTemplate(newName, data.content);
-      loadTemplates();
-    } catch (err) {
-      console.error(err);
-      alert(`복제 실행 중 오류 발생: ${err}`);
-    }
-  }
+  const columns = [
+    { header: "템플릿 이름", field: "name", component: TemplateNameLink },
+    { header: "작업", field: "actions", component: TemplateActions },
+  ];
 
-  async function deleteTemplate(name) {
-    if (!confirm(`템플릿 "${name}"을(를) 정말 삭제하시겠습니까?`)) return;
-    try {
-      await api.deleteTemplate(name);
-      loadTemplates();
-    } catch (err) {
-      console.error(err);
-      alert(`삭제 실행 중 오류 발생: ${err}`);
-    }
-  }
-
-  // 새 템플릿을 생성 (빈 내용 또는 기본 내용을 채워 POST)
-  async function createTemplate() {
-    const newName = prompt("생성할 템플릿의 이름을 입력하세요:", "");
-    if (!newName) return;
-    if (templates.includes(newName)) {
-      alert("이미 해당 이름의 템플릿이 존재합니다.");
-      return;
-    }
-    const defaultContent = (await api.fetchTemplate("default")).content;
-    try {
-      await api.updateTemplate(newName, defaultContent);
-      alert(`새 템플릿 "${newName}"이 생성되었습니다.`);
-      loadTemplates();
-    } catch (err) {
-      console.error(err);
-      alert(`새 템플릿 생성 중 오류 발생: ${err}`);
-    }
-  }
-
-  // 템플릿 이름변경
-  async function renameTemplate(originalName) {
-    const newName = prompt(
-      "변경할 템플릿 이름을 입력하세요:",
-      originalName,
-    );
-    if (!newName) return;
-    if (templates.includes(newName)) {
-      alert("이미 해당 이름의 템플릿이 존재합니다.");
-      return;
-    }
-    try {
-      const data = await api.fetchTemplate(originalName);
-      await api.updateTemplate(newName, data.content);
-      await api.deleteTemplate(originalName);
-      loadTemplates();
-    } catch (err) {
-      console.error(err);
-      alert(`이름 변경 중 오류 발생: ${err}`);
-    }
-  }
+  $: tableData = $templates.map((name) => ({
+    id: name,
+    name: name,
+    rename: () => renameTemplate(name),
+    duplicate: () => duplicateTemplate(name),
+    delete: () => deleteTemplate(name),
+  }));
 </script>
 
 <svelte:head>
-  <title>Templates</title>
+  <title>템플릿 관리 | Mail-Manager</title>
 </svelte:head>
 
-<section class="p-4">
-  <h2 class="text-2xl font-bold mb-4">Templates</h2>
-
-  <button
-    on:click={createTemplate}
-    class="mb-4 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+<Card>
+  <div
+    class="bg-gradient-to-r from-blue-600 to-blue-800 -m-5 mb-0 px-6 py-4 rounded-t-lg"
   >
-    Create New Template
-  </button>
+    <h1 class="text-2xl font-semibold text-white">템플릿 관리</h1>
+    <p class="text-blue-100 mt-1">
+      이메일 템플릿을 생성하고, 수정하며, 복제하거나 삭제할 수 있습니다.
+    </p>
+  </div>
 
-  {#if loading}
-    <p>템플릿을 불러오는 중...</p>
-  {:else if error}
-    <p class="text-red-500">{error}</p>
-  {:else if templates.length > 0}
-    <ul class="list-disc pl-5 space-y-2">
-      {#each templates as tpl}
-        <li class="flex items-center space-x-2">
-          <a
-            href={`/templates/${tpl}`}
-            class="flex-grow text-blue-500 hover:underline"
-          >
-            {tpl}
-          </a>
-          <button
-            on:click={() => renameTemplate(tpl)}
-            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded"
-          >
-            Rename
-          </button>
-          <button
-            on:click={() => duplicateTemplate(tpl)}
-            class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded"
-          >
-            Duplicate
-          </button>
-          <button
-            on:click={() => deleteTemplate(tpl)}
-            class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded"
-          >
-            Delete
-          </button>
-        </li>
-      {/each}
-    </ul>
-  {:else}
-    <p class="text-gray-600">등록된 템플릿이 없습니다.</p>
-  {/if}
-</section>
+  <div class="p-6">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-lg font-medium text-gray-800">템플릿 목록</h2>
+      <Button
+        on:click={createTemplate}
+        variant="primary"
+        disabled={$loading}
+        icon="<svg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' viewBox='0 0 20 20' fill='currentColor'><path fill-rule='evenodd' d='M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z' clip-rule='evenodd'></path></svg>"
+      >
+        새 템플릿 생성
+      </Button>
+    </div>
+
+    <ResponsiveTable
+      {columns}
+      data={tableData}
+      keyField="id"
+      loading={$loading}
+      emptyMessage="템플릿이 없습니다. 새 템플릿을 생성하여 시작하세요."
+      striped={true}
+      hoverEffect={true}
+      bordered={true}
+      compact={false}
+    />
+
+    {#if !$loading && $templates.length === 0}
+      <div class="text-center py-10 mt-4">
+        <Button
+          on:click={createTemplate}
+          variant="primary"
+          icon="<svg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' viewBox='0 0 20 20' fill='currentColor'><path fill-rule='evenodd' d='M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z' clip-rule='evenodd'></path></svg>"
+        >
+          템플릿 생성하기
+        </Button>
+      </div>
+    {/if}
+  </div>
+</Card>

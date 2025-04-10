@@ -1,67 +1,111 @@
 <script>
-  import * as api from "$lib/utils/api";
+  import { Textarea, Button, Spinner } from "$lib";
+  import { createTemplateEditorStore } from "./stores/templateEditorStore";
+  import { onMount } from "svelte";
+  import { page } from "$app/stores";
   export let data;
-  const { template } = data;
 
-  let content = template?.content ?? "";
-  let previewHTML = "";
+  const templateEditorStore = createTemplateEditorStore(data.template);
+  const {
+    name,
+    content,
+    previewHTML,
+    isSaving,
+    isLoadingPreview,
+    error,
+    updatePreview,
+    saveTemplate,
+  } = templateEditorStore;
 
-  async function updatePreview() {
-    try {
-      previewHTML = await api.previewTemplate(template.name, content);
-    } catch (error) {
-      previewHTML = `<p style="color: red;">Error: ${error}</p>`;
-    }
+  let debounceTimer;
+  function debouncedUpdatePreview() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      updatePreview();
+    }, 500);
   }
-
-  updatePreview();
-
-  async function saveTemplate() {
-    try {
-      await api.updateTemplate(template.name, content);
-      alert("Template saved successfully!");
-    } catch (error) {
-      alert(`Failed to save template: ${error}`);
-    }
+  $: if ($content) {
+    debouncedUpdatePreview();
   }
 </script>
 
 <svelte:head>
-  <title>Template Editor</title>
+  <title>템플릿 편집: {$name} | Mail-Manager</title>
 </svelte:head>
 
-<section class="p-4">
-  <h2 class="text-xl font-bold mb-4">Editing Template: {template.name}</h2>
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <!-- 편집 영역 -->
-    <div>
-      <label class="block font-medium mb-1" for="content"
-        >Template Content (HTML)</label
+<section
+  class="max-w-6xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden"
+>
+  <div class="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-4">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-semibold text-white">
+        템플릿 편집: {$name}
+      </h1>
+      <Button
+        on:click={() => window.history.back()}
+        variant="ghost"
+        size="sm"
+        class="text-white hover:bg-blue-700"
       >
-      <textarea
-        name="content"
-        bind:value={content}
-        rows="25"
-        class="w-full p-2 border border-gray-300 rounded"
-        on:input={updatePreview}
-      ></textarea>
-      <button
-        on:click={saveTemplate}
-        class="mt-4 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-      >
-        Save Template
-      </button>
+        ← 목록으로
+      </Button>
     </div>
-    <!-- 미리보기 영역 (iframe 채택) -->
-    <div>
-      <label class="block font-medium mb-1" for="preview">Live Preview</label>
-      <iframe
-        name="preview"
-        srcdoc={previewHTML}
-        class="w-full border border-gray-300 rounded"
-        style="min-height: 65vh;"
-        title="Live Preview"
-      ></iframe>
+    <p class="text-blue-100 mt-1">
+      HTML 코드를 수정하고 실시간으로 미리보기를 확인하세요
+    </p>
+  </div>
+
+  <div class="p-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <Textarea
+          label="템플릿 내용 (HTML)"
+          id="content"
+          name="content"
+          bind:value={$content}
+          resize="none"
+          class="font-mono text-sm h-[70vh] w-full"
+          placeholder="여기에 HTML 코드를 입력하세요..."
+        />
+      </div>
+      <div>
+        <label
+          class="block text-sm font-medium text-gray-700 mb-1"
+          for="preview"
+        >
+          실시간 미리보기
+          {#if $isLoadingPreview}
+            <Spinner size="xs" color="blue" class="ml-2 inline-block" />
+          {/if}
+        </label>
+        <div
+          class="border border-gray-300 rounded-md shadow-sm bg-white relative"
+        >
+          {#if $isLoadingPreview && !$previewHTML}
+            <div
+              class="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-50"
+            >
+              <Spinner size="md" />
+            </div>
+          {/if}
+          <iframe
+            title="Template Preview"
+            name="preview"
+            srcdoc={$previewHTML}
+            class="w-full rounded-md h-[70vh] border-0"
+          ></iframe>
+        </div>
+      </div>
+      <div class="mt-4">
+        <Button
+          on:click={saveTemplate}
+          variant="primary"
+          loading={$isSaving}
+          disabled={$isSaving || !$content.trim()}
+        >
+          {$isSaving ? "저장 중..." : "템플릿 저장"}
+        </Button>
+      </div>
     </div>
   </div>
 </section>
